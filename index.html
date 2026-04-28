@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speak Owned Media Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --card-hover: #22252f;
+    --border: #2a2d37;
+    --text: #e4e4e7;
+    --text-muted: #8b8d97;
+    --accent: #00C853;
+    --accent-dim: rgba(0,200,83,0.15);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.15);
+    --orange: #f97316;
+    --orange-dim: rgba(249,115,22,0.15);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59,130,246,0.15);
+    --purple: #a855f7;
+    --purple-dim: rgba(168,85,247,0.15);
+    --yellow: #eab308;
+    --yellow-dim: rgba(234,179,8,0.15);
+    --brand-color: #6366f1;
+    --brand-dim: rgba(99,102,241,0.15);
+    --info-color: #06b6d4;
+    --info-dim: rgba(6,182,212,0.15);
+    --promo-color: #f97316;
+    --infobrand-color: #10b981;
+    --infobrand-dim: rgba(16,185,129,0.12);
+    --campaign-color: #ec4899;
+    --campaign-dim: rgba(236,72,153,0.15);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: var(--bg); color: var(--text); min-height:100vh; }
+  .header { padding: 32px 40px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .header h1 span { color: var(--accent); }
+  .header .subtitle { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+  .header .updated { color: var(--text-muted); font-size: 12px; background: var(--card); padding: 6px 12px; border-radius: 6px; }
+  .container { padding: 0 40px 40px; }
+
+  /* KPI Row — 2 cards */
+  .kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .kpi-card { background: var(--card); border-radius: 14px; padding: 24px 28px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+  .kpi-card .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .kpi-card .label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+  .kpi-card .value { font-size: 36px; font-weight: 700; }
+  .kpi-card .kpi-meta { display: flex; gap: 16px; margin-top: 10px; flex-wrap: wrap; }
+  .kpi-card .meta-item { font-size: 11px; color: var(--text-muted); }
+  .kpi-card .meta-item span { color: var(--text); font-weight: 600; }
+  .kpi-card .target { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+  .kpi-card .target .goal { color: var(--accent); font-weight: 600; }
+  .kpi-card .period { font-size: 10px; color: var(--text-muted); margin-top: 4px; opacity: 0.7; }
+  .badge { display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; }
+  .badge-green { background: var(--accent-dim); color: var(--accent); }
+  .badge-red { background: var(--red-dim); color: var(--red); }
+  .badge-yellow { background: var(--yellow-dim); color: var(--yellow); }
+
+  /* Section */
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .section-title::before { content: ''; width: 3px; height: 14px; background: var(--accent); border-radius: 2px; }
+
+  /* Charts grid */
+  .charts-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .charts-3col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-card { background: var(--card); border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
+  .chart-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+  .chart-card h3 small { color: var(--text-muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .chart-wrap { position: relative; height: 260px; }
+
+  /* Andon */
+  .andon-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .andon-card { background: var(--card); border-radius: 12px; padding: 16px 20px; border: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; }
+  .andon-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .andon-card .andon-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .andon-card .andon-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  /* Type breakdown */
+  .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .type-card { background: var(--card); border-radius: 12px; padding: 18px; border: 1px solid var(--border); }
+  .type-card .type-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .type-card .type-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .type-card .type-name { font-size: 13px; font-weight: 600; }
+  .type-card .type-count { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+  .type-card .type-stat { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .type-card .type-stat:last-child { border: none; }
+  .type-card .type-stat .stat-label { font-size: 12px; color: var(--text-muted); }
+  .type-card .type-stat .stat-value { font-size: 12px; font-weight: 600; }
+
+  /* Weekly table */
+  .table-card { background: var(--card); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+  .table-card h3 { font-size: 14px; font-weight: 600; padding: 16px 20px 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 10px 16px; color: var(--text-muted); font-weight: 500; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+  td { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: var(--card-hover); }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .pill-brand { background: var(--brand-dim); color: var(--brand-color); }
+  .pill-info { background: var(--info-dim); color: var(--info-color); }
+  .pill-promo { background: var(--orange-dim); color: var(--promo-color); }
+  .pill-campaign { background: var(--campaign-dim); color: var(--campaign-color); }
+  .pill-infobrand { background: var(--infobrand-dim); color: var(--infobrand-color); }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab { padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; background: transparent; color: var(--text-muted); border: 1px solid transparent; transition: all 0.2s; }
+  .tab.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(0,200,83,0.3); }
+  .tab:hover:not(.active) { background: rgba(255,255,255,0.05); }
+
+  /* Mission Banner */
+  .mission-banner { background: linear-gradient(135deg, rgba(0,200,83,0.08) 0%, rgba(99,102,241,0.08) 100%); border: 1px solid rgba(0,200,83,0.15); border-radius: 14px; padding: 28px 32px; margin-bottom: 28px; position: relative; overflow: hidden; }
+  .mission-banner::before { content: ''; position: absolute; top: -40px; right: -40px; width: 160px; height: 160px; background: radial-gradient(circle, rgba(0,200,83,0.06) 0%, transparent 70%); }
+  .mission-banner .mission-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); font-weight: 600; margin-bottom: 10px; }
+  .mission-banner .mission-text { font-size: 20px; font-weight: 700; line-height: 1.5; letter-spacing: -0.3px; }
+  .mission-banner .mission-text em { font-style: normal; color: var(--accent); }
+  .mission-banner .mission-sub { font-size: 13px; color: var(--text-muted); margin-top: 12px; line-height: 1.6; }
+  .mission-banner .mission-test { display: inline-block; margin-top: 14px; font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); }
+  .mission-banner .mission-test strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div>
+      <h1>🪂 <span>Speak</span> Owned Media Dashboard</h1>
+      <div class="subtitle">Instagram 콘텐츠 퍼포먼스 · 2026 전략 트래킹</div>
+    </div>
+  </div>
+  <div class="updated" id="lastUpdated">Last updated: —</div>
+</div>
+
+<div class="container">
+  <!-- Mission Banner -->
+  <div class="mission-banner">
+    <div class="mission-label">🌟 우리 채널은 왜 존재하는가</div>
+    <div class="mission-text">우리가 알리고 싶은 건 <em>'영어'</em>가 아니라 <em>'스픽'</em><br>— 스픽이라는 브랜드를 좋아하는 사람을 만드는 것</div>
+    <div class="mission-sub">화자가 누군지 모를 콘텐츠는 스픽을 알리는 데 도움이 되지 않는다. 사람들이 '영어 정보'를 기억하는 게 아니라 '스픽'을 기억하게 만들자.</div>
+    <div class="mission-test"><strong>🔍 로고 가림 테스트:</strong> 로고를 가려도 야나두/해커스에 올라갈 수 있으면 정보성. 스픽이 아니면 못 만드는 이야기여야 브랜드 콘텐츠.</div>
+  </div>
+
+  <!-- KPI Row -->
+  <div class="section">
+    <div class="section-title">핵심 KPI</div>
+  </div>
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <!-- Andon Alerts -->
+  <div class="section">
+    <div class="section-title">Andon 시그널</div>
+  </div>
+  <div class="andon-row" id="andonRow"></div>
+
+  <!-- Type Breakdown -->
+  <div class="section">
+    <div class="section-title">콘텐츠 타입별 성과</div>
+  </div>
+  <div class="type-grid" id="typeGrid"></div>
+
+  <!-- Charts -->
+  <div class="charts-2col">
+    <div class="chart-card">
+      <h3>Weekly Avg Engagement <small>목표: 1,000</small></h3>
+      <div class="chart-wrap"><canvas id="chartWeeklyEng"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>주간 댓글율 (Comment Rate) <small>목표: 2%</small></h3>
+      <div class="chart-wrap"><canvas id="chartCommentRate"></canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-2col">
+    <div class="chart-card">
+      <h3>인게이지먼트 구성 비교 <small>Info vs Brand</small></h3>
+      <div class="chart-wrap"><canvas id="chartEngComp"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>콘텐츠 타입 비중 추이 <small>주간</small></h3>
+      <div class="chart-wrap"><canvas id="chartTypeMix"></canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-2col">
+    <div class="chart-card">
+      <h3>View 추이 <small>타입별</small></h3>
+      <div class="chart-wrap"><canvas id="chartViews"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Non-follower Reach % <small>타입별 평균</small></h3>
+      <div class="chart-wrap"><canvas id="chartNonFollower"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Top Content Table -->
+  <div class="section">
+    <div class="section-title">콘텐츠 상세</div>
+  </div>
+  <div class="tabs" id="tableTabs">
+    <div class="tab active" data-filter="all">전체</div>
+    <div class="tab" data-filter="Brand">Brand</div>
+    <div class="tab" data-filter="Info">Info</div>
+    <div class="tab" data-filter="Promotion">Promotion</div>
+    <div class="tab" data-filter="Info_Brand">Info_Brand</div>
+  </div>
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>날짜</th>
+          <th>타입</th>
+          <th>포맷</th>
+          <th>제목</th>
+          <th style="text-align:right">View</th>
+          <th style="text-align:right">Engagement</th>
+          <th style="text-align:right">Saves</th>
+          <th style="text-align:right">Likes</th>
+          <th style="text-align:right">Shares</th>
+          <th style="text-align:right">Comments</th>
+          <th style="text-align:right">댓글율</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ===== RAW DATA =====
+const RAW_CSV = `type,Content,Title,Date,Week,View,Non-follower %,Reach,Engagements,Non follower %,Saves,Likes,Shares,Comments,Female %,Feed %,Profile Activity,Skip %,Average view time
+Info,Reels,스픽 직원도 영어책 첫 장만 공부함,25/11/27,11월 5주차,45000,42.8%,32000,86,13.60%,6,64,7,2,56.60%,95%,,73.80%,3
+Brand,Reels,T1 승리에 스픽 담당자가 간절해진 이유,25/11/28,11월 5주차,68000,47.0%,48000,340,25.40%,28,272,17,12,51.70%,80%,,74.70%,4
+Brand,Reels,스픽 담당자를 반성하게 만든 한마디,25/11/29,11월 5주차,47000,43.7%,29000,116,20.50%,6,108,1,1,53.60%,90%,,74.50%,8
+Info,Static,미국 회사 실제 메신저 대화로 배우는 영어 표현 5가지,25/11/30,11월 6주차,205000,32.5%,60000,1226,10.90%,657,471,85,1,58.6%,63.5%,,0,0
+Info,Static,원어민들이 진짜 자주 쓰는 should의 또다른 의미,25/12/10,12월 2주차,151000,20.6%,49000,1066,7.60%,541,448,63,3,61.30%,72.50%,,0,0
+Brand,Static,영어 좀 틀렸을 때 내 걱정,25/12/12,12월 2주차,236000,15.4%,131000,1026,9.70%,86,770,143,14,60.20%,81.50%,,0,0
+Brand,Static,영어 서툴게 하는 사람 봤을 때,25/12/13,12월 2주차,174000,11.9%,97000,341,9%,46,256,20,7,61.30%,86.50%,,0,0
+Info,Reels,만족스러웠어 Good만 쓰기 아쉽다면,25/12/15,12월 3주차,94000,44.7%,65000,1197,7.80%,579,540,55,6,64.20%,76%,,74.20%,6
+Info,Static,너 외국에서 살다 왔어? 소리 듣게하는 표현 3가지,25/12/16,12월 3주차,161000,18.2%,56000,1881,15.90%,1061,612,181,4,63%,74.90%,,0,0
+Brand,Reels,김우빈 티저,25/12/19,12월 3주차,74000,46%,51000,481,42.10%,17,311,66,65,58.40%,62.70%,,82.80%,2
+Brand,Reels,수능 영어 문제 본 원어민 동료 반응,25/12/22,12월 4주차,120000,40.90%,82000,728,4%,136,432,103,36,64%,82.80%,,62%,13
+Brand Campaign,Reels,오피스편,25/12/22,12월 4주차,105000,47.90%,76000,1482,27.10%,111,1141,148,44,71.60%,80.10%,,67.30%,6
+Brand Campaign,Reels,메인편,25/12/22,12월 4주차,64000,45.80%,48000,654,48.10%,33,503,68,22,71%,87.30%,,69.40%,4
+Brand Campaign,Reels,마트편,25/12/22,12월 4주차,53000,46.70%,40000,695,44.40%,36,544,58,27,72.20%,75.70%,,78.50%,4
+Brand,Reels,한국인 앞에서 영어가 더 잘 안나오는 이유,25/12/23,12월 4주차,64000,40.50%,46000,173,6.10%,43,105,16,3,61.20%,90.20%,,69.70%,4
+Brand,Reels,김우빈 찢는장면,25/12/23,12월 4주차,45000,43.40%,33000,148,30.10%,6,115,8,5,54.70%,62.90%,,87.90%,2
+Brand,Reels,아유 저 영어 못해요 라고 말하지 마세요,25/12/24,12월 4주차,52000,42.80%,39000,99,7.90%,24,68,3,1,61.30%,95.30%,,71.40%,4
+Info,Static,미국에선 MBTI 대신에 이걸 물어봅니다,25/12/26,12월 4주차,196000,6.70%,80000,1048,3.40%,525,316,177,12,66.70%,88.10%,,0,0
+Info,Reels,영어로 예의 갖추는 만능 패턴 3가지,25/12/27,12월 4주차,77000,62.60%,58000,651,20.90%,325,288,20,8,58.30%,87.30%,,78.20%,7
+Brand Campaign,Reels,보는 사람도 땀난다는 김우빈 스픽광고,25/12/28,12월 5주차,109000,40.60%,74000,432,11%,85,313,22,6,68.50%,91.80%,,58.80%,7
+Brand Campaign,Static,스픽이 사상 첫 팝업을 엽니다,25/12/29,12월 5주차,159000,10.90%,63000,909,14.70%,128,545,164,58,0,0,,0,0
+Info,Static,미국 Z세대가 밥 먹듯이 쓰는 문법 파괴 영어 슬랭,25/12/30,12월 5주차,162000,10.70%,64000,1217,9%,573,507,111,11,0,0,,0,0
+Brand,Static,새해 운 트이시라고 만들어본 짤모음,25/12/30,12월 5주차,124000,5.50%,53000,463,4.20%,305,89,52,6,0,0,,0,0
+Brand,Reels,스픽 팝업 강남역 한복판에 새해 소망 띄우세요,25/12/30,12월 5주차,63000,44.30%,47000,303,21.60%,37,192,45,19,0,0,,0,0
+Brand,Static,잘생긴 목소리로 덕담 들으면 새해 행복할 확률 높아진다,25/12/31,12월 5주차,117000,8.20%,44000,520,20%,45,261,163,34,0,0,,0,0
+Brand,Static,새해 영어 마인드,26/1/1,1월 1주차,112000,12%,60000,164,8.10%,28,120,7,3,0,0,,0,0
+Brand,Static,팝업 현장스케치,26/1/1,1월 1주차,136000,5.60%,48000,215,12%,10,190,11,2,0,0,,0,0
+Info,Static,새해 운 활짝 트이는 영어 표현 32가지,26/1/2,1월 1주차,103000,11.20%,37000,1416,7.20%,824,382,176,4,0,0,,0,0
+Brand,Reels,김우빈 비즈링 홍보,26/1/2,1월 1주차,40000,41.60%,30000,303,46%,26,222,19,20,0,0,,0,0
+Info,Static,작심삼일 올바른 마인드,26/1/3,1월 1주차,121000,5.30%,66000,208,8.40%,40,123,31,6,0,0,,0,0
+Promotion,Static,프로모션 짤모음,26/1/3,1월 1주차,99000,5.80%,37000,125,11.60%,16,95,6,4,0,0,,0,0
+Brand,Static,새해다짐 손편지,26/1/4,1월 2주차,129000,3.90%,53000,525,6%,49,433,11,23,0,0,,0,0
+Promotion,Reels,프로모션 트로트,26/1/4,1월 2주차,32000,41.90%,24000,87,21.80%,7,64,3,12,0,0,,0,0
+Info,Reels,생긴 건 똑같은데 뜻도 발음도 다른 단어 3가지,26/1/5,1월 2주차,68000,43.40%,48000,679,9.80%,262,357,48,8,0,0,,0,0
+Brand,Static,손편지 2,26/1/6,1월 2주차,103000,9%,43000,242,9%,42,178,8,8,0,0,,0,0
+Brand,Static,김우빈: 스픽하러 갈 사람?,26/1/6,1월 2주차,80000,14.90%,33000,627,65.80%,42,479,38,45,0,0,,0,0
+Info,Static,뜻 알게되면 웃음나는 표현,26/1/7,1월 2주차,282000,37.30%,133000,6095,64.30%,1375,1261,3417,12,0,0,,0,0
+Brand,Static,영어 실수하는 한국인 대할때 외국인 찐 속마음,26/1/8,1월 2주차,170000,9.90%,69000,1033,10.80%,262,655,71,27,0,0,,0,0
+Brand,Static,그동안 감사했습니다,26/1/9,1월 2주차,227000,6.10%,105000,874,7.30%,48,797,7,9,0,0,,0,0
+Brand,Static,영어 서툴 때 우리가 상상하는 외국인 반응,26/1/10,1월 2주차,241000,5.50%,82000,706,4.80%,94,534,62,3,0,0,,0,0
+Brand,Static,수영을 책으로만 배우면 안 되듯,26/1/10,1월 2주차,83000,9.50%,32000,101,13.50%,22,67,5,2,0,0,,0,0
+Promotion,Static,파파고도 번역 못하는 원어민 실생활 표현 5가지,26/1/11,1월 3주차,117000,7.20%,45000,620,11.60%,283,268,58,2,0,0,,0,0
+Info,Static,영국영어 vs 미국영어,26/1/19,1월 4주차,95000,3.20%,35000,487,11%,235,183,60,3,0,0,,0,0
+Brand,Static,스픽팝업,26/1/21,1월 4주차,102000,4.60%,39000,206,11.60%,20,167,10,8,0,0,,0,0
+Info,Reels,문장 사이 끼워만 넣어도 원어민력,26/1/26,1월 5주차,61000,46.70%,43000,1822,23.20%,998,695,998,6,0,0,,0,0
+Info,Static,말문 막힐때 트여주는 만능패턴,26/1/27,1월 5주차,127000,15.40%,69000,5236,56.50%,3060,1260,856,2,0,0,,0,0
+Info,Reels,서운하다 섭섭하다 영어로,26/1/29,1월 5주차,122000,53.30%,80000,2501,36.60%,1454,798,209,11,0,0,,0,0
+Info,Static,원어민 Okay 진짜의미,26/2/4,2월 1주차,114000,4.10%,50000,643,16.80%,254,325,54,2,0,0,,0,0
+Info,Reels,미국 호텔에서 커버만갈기,26/2/6,2월 1주차,201000,48.40%,122000,2372,19.90%,1321,921,97,10,0,0,,0,0
+Info,Reels,미국 직장인 속마음 vs 현실,26/2/11,2월 2주차,119000,47.70%,86000,1971,15.10%,930,852,161,11,0,0,,0,0
+Info,Static,잔소리 카운터 11개,26/2/16,2월 3주차,98000,2.20%,38000,509,2.80%,269,211,22,1,0,0,,0,0
+Info,Reels,새해목표,26/2/18,2월 3주차,72000,46%,52000,298,11%,91,187,11,5,0,0,,0,0
+Brand,Static,용기가 실력을 만든다,26/2/19,2월 3주차,53000,1.30%,52000,73,4.80%,12,57,2,0,0,0,,0,0
+Brand,Static,담당자 영어트인 이야기,26/2/20,2월 3주차,69000,2.90%,65000,87,6%,14,65,3,0,0,0,,0,0
+Info,Static,설 연휴 공감표현 4가지,26/2/20,2월 3주차,72000,2.40%,27000,234,3.20%,114,108,8,3,0,0,,0,0
+Info,Reels,미국 택시 실제상황,26/2/21,2월 3주차,106000,44.90%,71000,792,12.20%,434,312,31,5,0,0,,0,0
+Info,Static,올림픽표현,26/2/22,2월 4주차,102000,2.80%,98000,408,5.20%,196,176,26,0,0,0,,0,0
+Brand,Reels,영어 틀렸을때 원어민 반응,26/2/24,2월 4주차,67000,44%,49000,109,14.80%,21,75,4,4,0,0,,0,0
+Brand,Reels,당첨자발표,26/2/28,2월 4주차,161000,49.10%,110000,502,15%,66,371,28,30,0,0,,0,0
+Info,Static,3.1절 영어로,26/3/1,3월 1주차,71000,2.70%,27000,295,5.40%,104,167,19,1,0,0,,0,0
+Brand,Reels,집가기싫은 깽이,26/3/4,3월 1주차,82000,42.80%,56000,892,5%,26,782,26,28,0,0,,0,0
+Brand,Static,블루짤-영어가 틀렸지,26/3/5,3월 1주차,56000,6.90%,33000,427,7.10%,41,277,89,10,0,0,,0,0
+Info,Static,남사스러운 영어 실수 모음,26/3/6,3월 1주차,80000,0.80%,29000,315,4.70%,108,172,24,6,0,0,,0,0
+Info,Reels,404 뽀오뽀인이유,26/3/8,3월 2주차,103000,45.60%,69000,310,1.70%,82,199,25,0,0,0,,0,0
+Info,Reels,센스있어보이는 표현들,26/3/10,3월 2주차,45000,43.60%,32000,177,0.50%,57,108,9,1,0,0,,0,0
+Brand,Reels,영어만 알아듣는 스픽 강아지,26/3/11,3월 2주차,47000,44.60%,34000,246,5.20%,13,214,5,12,0,0,,0,0
+Brand,Reels,대환장 오답잔치,26/3/12,3월 2주차,58000,42.80%,40000,355,2.70%,165,146,31,7,0,0,,0,0
+Brand,Reels,내향인은 못 버티는 스픽 전체미팅,26/3/13,3월 2주차,129000,47.10%,84000,459,7.80%,72,274,71,32,0,0,,0,0
+Info,Reels,미국 월요병,26/3/16,3월 3주차,62000,47.40%,47000,303,47.40%,111,164,21,3,0,0,,0,0
+Brand,Reels,영어로 말하느라 웃긴 사람 어필 실패,26/3/17,3월 3주차,117000,47%,86000,645,47%,49,412,135,30,0,0,,0,0
+Brand,Static,영어 틀렸을때/잘했을때 상대 표정,26/3/18,3월 3주차,109000,1.40%,47000,124,0.60%,5,102,11,4,0,0,,0,0
+Brand,Static,코너 AMA,26/3/19,3월 3주차,90000,4.80%,43000,251,4.20%,64,159,23,0,0,0,,0,0
+Info,Static,스픽 메신저 영어1,26/3/20,3월 3주차,72000,3%,29000,715,3%,410,244,43,6,0,0,,0,0
+Brand,Static,영어 고민 좋은 답변/나쁜 답변,26/3/24,3월 4주차,78000,0.90%,45000,114,0.90%,16,80,10,3,0,0,,0,0
+Brand,Reels,회의할 때 이 말쓰면 상대방이 좋아함,26/3/25,3월 4주차,59000,46%,42000,381,46%,191,150,27,7,0,0,,0,0
+Brand,Reels,매틀사 우우웊,26/3/25,3월 4주차,53000,46.50%,53000,147,10.40%,30,84,18,8,0,0,,0,0
+Brand,Reels,전 직원 보는 앞에서 사고 친 썰,26/3/26,3월 4주차,64000,43.20%,50000,195,3.60%,78,96,19,0,0,0,,0,0
+Brand,Static,매틀사 - 미국 가보니 영어 완벽하게 하는사람 없더라,26/3/26,3월 4주차,101000,11.50%,45000,265,10%,48,171,17,23,0,0,,0,0
+Brand,Static,매틀사 - 영어 못해서 미안해 했더니 돌아온 대답,26/3/27,3월 4주차,198000,2.90%,85000,761,4.80%,145,537,48,19,0,0,,0,0
+Brand,Static,영어 못한다고 했더니 상사가 한 행동,26/3/28,3월 4주차,93000,2.10%,39000,270,6.60%,69,174,13,4,0,0,,0,0
+Info,Static,지난 한 주 스픽 동료들이 쓴 표현 모음,26/3/29,3월 5주차,86000,1.70%,38000,731,6.30%,453,213,49,4,0,0,,0,0
+Brand,Static,매틀사 - 내 영어 실력에는 아무도 관심이 없다,26/3/30,3월 5주차,91000,3.50%,39000,159,7.30%,43,104,8,1,0,0,,0,0
+Brand,Reels,듀오링고 인형 POV,26/4/1,3월 5주차,205000,42.30%,114000,1926,6.70%,86,1429,312,77,0,0,,0,0
+Brand,Reels,영어 미팅에서 한마디 한 나 POV,26/4/2,3월 5주차,72000,44.70%,51000,118,14.40%,15,95,5,1,0,0,,0,0
+Info_Brand,Reels,곱씹어보니 우아하게 말하는 법,26/4/3,3월 5주차,66000,47.10%,46000,1025,5%,594,355,63,3,0,0,,0,0
+Info_Brand,Reels,나만 그렇게 생각한 걸수도 있지만 원어민처럼 말하는 법,26/4/6,4월 1주차,55000,44.90%,39000,355,7.90%,199,134,14,6,0,0,,0,0
+Info_Brand,Reels,왜 How are you라고 할까?,26/4/7,4월 1주차,150000,57.10%,112000,644,15.60%,131,458,29,12,0,0,,0,0
+Brand,Reels,영어 스몰톡 대참사,26/4/9,4월 1주차,93000,47%,65000,137,4.80%,26,100,8,1,0,0,,0,0
+Info_Brand,Reels,엿들으려고 한 건 아닌데 영어로?,26/4/10,4월 1주차,111000,48%,74000,1036,11.50%,573,377,70,2,0,0,,0,0
+Info_Brand,Reels,일을 굴러가게하다 영어로?,26/4/13,4월 2주차,102000,47.30%,71000,625,2.20%,299,292,27,2,0,0,,0,0
+Info_Brand,Reels,미국에서 아파도 병원 안가는 이유,26/4/16,4월 2주차,98000,44.90%,71000,562,5.80%,173,320,36,23,0,0,,0,0
+Info_Brand,Reels,미국 식당에서 이거 모르면 생 돈 날림,26/4/21,4월 3주차,54000,47.40%,41000,587,11.60%,266,231,85,1,0,0,,0,0
+Info_Brand,Reels,미국사람들이 excuse me 달고사는 이유,26/4/24,4월 3주차,42000,45.80%,32000,180,45.80%,37,133,7,1,0,0,,0,0`;
+
+// ===== PARSE =====
+function parseCSV(csv) {
+  const lines = csv.trim().split('\n');
+  const headers = lines[0].split(',');
+  return lines.slice(1).map(line => {
+    // Handle quoted fields
+    const vals = [];
+    let current = '', inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') { inQuotes = !inQuotes; continue; }
+      if (line[i] === ',' && !inQuotes) { vals.push(current.trim()); current = ''; continue; }
+      current += line[i];
+    }
+    vals.push(current.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = vals[i] || '');
+    return obj;
+  });
+}
+
+function num(s) { return parseInt((s||'0').replace(/[,%]/g, '')) || 0; }
+function pct(s) { return parseFloat((s||'0').replace('%','')) || 0; }
+
+const data = parseCSV(RAW_CSV);
+
+// Parse each row
+const rows = data.map(d => ({
+  type: d.type,
+  format: d.Content,
+  title: d.Title || d[''] || '',
+  date: d.Date,
+  week: d.Week,
+  view: num(d.View),
+  nfPct: pct(d['Non-follower %']),
+  reach: num(d.Reach),
+  engagements: num(d.Engagements),
+  nfReachPct: pct(d['Non follower %']),
+  saves: num(d.Saves),
+  likes: num(d.Likes),
+  shares: num(d.Shares),
+  comments: num(d.Comments),
+}));
+
+// ===== FILTER: Brand Campaign 제외 (예외지표) =====
+const allRows = rows; // 원본 보관 (테이블용)
+const filtered = rows.filter(r => r.type !== 'Brand Campaign');
+
+// ===== COMPUTE (Brand Campaign 제외) =====
+const totalPosts = filtered.length;
+const totalEng = filtered.reduce((s,r) => s + r.engagements, 0);
+const avgEng = Math.round(totalEng / totalPosts);
+const totalComments = filtered.reduce((s,r) => s + r.comments, 0);
+const commentRate = ((totalComments / totalEng) * 100).toFixed(2);
+const avgView = Math.round(filtered.reduce((s,r) => s + r.view, 0) / totalPosts);
+
+// By type
+function typeStats(typeName) {
+  const filtered = rows.filter(r => r.type === typeName);
+  const n = filtered.length;
+  if (!n) return { n:0, avgEng:0, avgView:0, saves:0, likes:0, shares:0, comments:0, commentRate:0, savePct:0, likePct:0, sharePct:0, commentPct:0 };
+  const eng = filtered.reduce((s,r) => s+r.engagements, 0);
+  const sv = filtered.reduce((s,r) => s+r.saves, 0);
+  const lk = filtered.reduce((s,r) => s+r.likes, 0);
+  const sh = filtered.reduce((s,r) => s+r.shares, 0);
+  const cm = filtered.reduce((s,r) => s+r.comments, 0);
+  return {
+    n, avgEng: Math.round(eng/n), avgView: Math.round(filtered.reduce((s,r)=>s+r.view,0)/n),
+    saves: sv, likes: lk, shares: sh, comments: cm,
+    commentRate: eng > 0 ? ((cm/eng)*100).toFixed(2) : '0',
+    savePct: eng > 0 ? ((sv/eng)*100).toFixed(1) : '0',
+    likePct: eng > 0 ? ((lk/eng)*100).toFixed(1) : '0',
+    sharePct: eng > 0 ? ((sh/eng)*100).toFixed(1) : '0',
+    commentPct: eng > 0 ? ((cm/eng)*100).toFixed(1) : '0',
+  };
+}
+
+const infoStats = typeStats('Info');
+const brandStats = typeStats('Brand');
+const promoStats = typeStats('Promotion');
+const infoBrandStats = typeStats('Info_Brand');
+
+// Weekly aggregation (Brand Campaign 제외)
+const weekOrder = [];
+const weekMap = {};
+filtered.forEach(r => {
+  if (!weekMap[r.week]) { weekMap[r.week] = []; weekOrder.push(r.week); }
+  weekMap[r.week].push(r);
+});
+// Sort by extracting month/week
+weekOrder.sort((a, b) => {
+  const pa = a.match(/(\d+)월\s*(\d+)주차/);
+  const pb = b.match(/(\d+)월\s*(\d+)주차/);
+  if (!pa || !pb) return 0;
+  const ma = parseInt(pa[1]), wa = parseInt(pa[2]);
+  const mb = parseInt(pb[1]), wb = parseInt(pb[2]);
+  // Handle year wrap (11,12 = 2025, 1-3 = 2026)
+  const ya = ma >= 11 ? 2025 : 2026;
+  const yb = mb >= 11 ? 2025 : 2026;
+  return (ya*100+ma)*10+wa - (yb*100+mb)*10-wb;
+});
+
+const weeklyData = weekOrder.map(w => {
+  const items = weekMap[w];
+  const eng = items.reduce((s,r)=>s+r.engagements,0);
+  const cm = items.reduce((s,r)=>s+r.comments,0);
+  const brandCount = items.filter(r => r.type === 'Brand').length;
+  const infoCount = items.filter(r => r.type === 'Info').length;
+  const promoCount = items.filter(r => r.type === 'Promotion').length;
+  const infoBrandCount = items.filter(r => r.type === 'Info_Brand').length;
+  return {
+    week: w,
+    avgEng: Math.round(eng / items.length),
+    commentRate: eng > 0 ? ((cm/eng)*100) : 0,
+    total: items.length,
+    brandCount, infoCount, promoCount, infoBrandCount,
+    brandPct: items.length > 0 ? ((brandCount / items.length) * 100) : 0,
+    infoPct: items.length > 0 ? ((infoCount / items.length) * 100) : 0,
+  };
+});
+
+// Recent 3 weeks for Andon check
+const recent3 = weeklyData.slice(-3);
+const engBelow500_3wk = recent3.every(w => w.avgEng < 500);
+const commentBelow1_1mo = weeklyData.slice(-4).every(w => w.commentRate < 1);
+const recentInfoPct = (() => {
+  const recent = filtered.slice(-20);
+  const info = recent.filter(r => r.type === 'Info' || r.type === 'Info_Brand').length;
+  return (info / recent.length) * 100;
+})();
+const infoOver50 = recentInfoPct > 50;
+
+// ===== RENDER KPIs =====
+const firstDate = rows[0].date;
+const lastDate = rows[rows.length-1].date;
+const fullPeriod = `${firstDate} ~ ${lastDate}`;
+document.getElementById('lastUpdated').textContent = `최종 업데이트: ${lastDate}`;
+
+// Recent 4 weeks metrics
+const recent4Weeks = weeklyData.slice(-4);
+const recent4WeekNames = recent4Weeks.map(w => w.week);
+const recent4Rows = filtered.filter(r => recent4WeekNames.includes(r.week));
+const r4Eng = recent4Rows.length > 0 ? Math.round(recent4Rows.reduce((s,r) => s+r.engagements, 0) / recent4Rows.length) : 0;
+const r4TotalEng = recent4Rows.reduce((s,r) => s+r.engagements, 0);
+const r4Comments = recent4Rows.reduce((s,r) => s+r.comments, 0);
+const r4CommentRate = r4TotalEng > 0 ? ((r4Comments / r4TotalEng) * 100).toFixed(2) : '0';
+const r4AvgView = recent4Rows.length > 0 ? Math.round(recent4Rows.reduce((s,r) => s+r.view, 0) / recent4Rows.length) : 0;
+const r4BrandN = recent4Rows.filter(r => r.type === 'Brand').length;
+const r4BrandPct = recent4Rows.length > 0 ? Math.round((r4BrandN / recent4Rows.length) * 100) : 0;
+const r4Period = recent4Weeks.length >= 2 ? `${recent4Weeks[0].week} ~ ${recent4Weeks[recent4Weeks.length-1].week}` : '';
+
+// KPI 1: Weekly Avg Engagement
+const engGoal = r4Eng >= 1000;
+// KPI 2: Comment Rate (comments / engagements)
+const crGoal = parseFloat(r4CommentRate) >= 2;
+
+const kpiHtml = `
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div class="label">Weekly Avg Engagement</div>
+      <span class="badge ${engGoal ? 'badge-green' : 'badge-yellow'}">${engGoal ? 'On Track' : 'Below Target'}</span>
+    </div>
+    <div class="value">${r4Eng.toLocaleString()}</div>
+    <div class="target"><span class="goal">목표: 1,000</span> · 전체 인게이지먼트 볼륨으로 채널 건강성 측정</div>
+    <div class="kpi-meta">
+      <div class="meta-item">📅 ${r4Period}</div>
+      <div class="meta-item">전체 기간 평균 <span>${avgEng.toLocaleString()}</span></div>
+      <div class="meta-item">게시물 <span>${recent4Rows.length}개</span></div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div class="label">댓글율 (Comment Rate)</div>
+      <span class="badge ${crGoal ? 'badge-green' : 'badge-yellow'}">${crGoal ? 'On Track' : 'Below Target'}</span>
+    </div>
+    <div class="value">${r4CommentRate}%</div>
+    <div class="target"><span class="goal">목표: 2%</span> · 사람들이 스픽에 대해 이야기하고 있는가</div>
+    <div class="kpi-meta">
+      <div class="meta-item">📅 ${r4Period}</div>
+      <div class="meta-item">전체 기간 평균 <span>${commentRate}%</span></div>
+      <div class="meta-item">산식 <span>Comments / Engagements</span></div>
+    </div>
+  </div>
+`;
+document.getElementById('kpiRow').innerHTML = kpiHtml;
+
+// ===== RENDER ANDON =====
+const andons = [
+  { icon: '📉', color: engBelow500_3wk ? 'var(--red-dim)' : 'var(--accent-dim)', title: 'Avg Engagement < 500 (3주 연속)', desc: engBelow500_3wk ? '⚠️ 최근 3주 평균이 목표의 절반 미만' : `✅ 최근 3주: ${recent3.map(w=>w.avgEng).join(', ')}` },
+  { icon: '💬', color: commentBelow1_1mo ? 'var(--red-dim)' : 'var(--accent-dim)', title: '댓글율 < 1% (1개월 지속)', desc: commentBelow1_1mo ? '⚠️ 최근 4주 댓글율 모두 1% 미만' : `✅ 최근 4주 중 1%+ 달성 있음` },
+  { icon: '📊', color: infoOver50 ? 'var(--orange-dim)' : 'var(--accent-dim)', title: '정보성 비중 > 50%', desc: infoOver50 ? `⚠️ 최근 20개 중 정보성 ${recentInfoPct.toFixed(0)}%` : `✅ 최근 20개 중 정보성 ${recentInfoPct.toFixed(0)}%` },
+];
+document.getElementById('andonRow').innerHTML = andons.map(a => `
+  <div class="andon-card">
+    <div class="andon-icon" style="background:${a.color}">${a.icon}</div>
+    <div>
+      <div class="andon-title">${a.title}</div>
+      <div class="andon-desc">${a.desc}</div>
+    </div>
+  </div>
+`).join('');
+
+// ===== TYPE GRID =====
+const types = [
+  { name: 'Brand', stats: brandStats, color: 'var(--brand-color)', dot: '#6366f1' },
+  { name: 'Info', stats: infoStats, color: 'var(--info-color)', dot: '#06b6d4' },
+  { name: 'Promotion', stats: promoStats, color: 'var(--promo-color)', dot: '#f97316' },
+  { name: 'Info_Brand', stats: infoBrandStats, color: 'var(--infobrand-color)', dot: '#10b981' },
+];
+document.getElementById('typeGrid').innerHTML = types.map(t => `
+  <div class="type-card">
+    <div class="type-header">
+      <div class="type-dot" style="background:${t.dot}"></div>
+      <div class="type-name">${t.name}</div>
+      <div class="type-count">${t.stats.n}개</div>
+    </div>
+    <div class="type-stat"><span class="stat-label">평균 Engagement</span><span class="stat-value">${t.stats.avgEng.toLocaleString()}</span></div>
+    <div class="type-stat"><span class="stat-label">평균 View</span><span class="stat-value">${(t.stats.avgView/1000).toFixed(0)}K</span></div>
+    <div class="type-stat"><span class="stat-label">댓글율</span><span class="stat-value">${t.stats.commentRate}%</span></div>
+    <div class="type-stat"><span class="stat-label">Save %</span><span class="stat-value">${t.stats.savePct}%</span></div>
+    <div class="type-stat"><span class="stat-label">Like %</span><span class="stat-value">${t.stats.likePct}%</span></div>
+  </div>
+`).join('');
+
+// ===== CHARTS =====
+Chart.defaults.color = '#8b8d97';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = '-apple-system, Pretendard, sans-serif';
+Chart.defaults.font.size = 11;
+
+// Weekly Engagement
+new Chart(document.getElementById('chartWeeklyEng'), {
+  type: 'bar',
+  data: {
+    labels: weeklyData.map(w => w.week.replace('주차','')),
+    datasets: [{
+      data: weeklyData.map(w => w.avgEng),
+      backgroundColor: weeklyData.map(w => w.avgEng >= 1000 ? 'rgba(0,200,83,0.7)' : 'rgba(99,102,241,0.5)'),
+      borderRadius: 4,
+      barThickness: 16,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      annotation: { annotations: {} }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(255,255,255,0.04)' },
+      },
+      x: { grid: { display: false }, ticks: { maxRotation: 45 } }
+    }
+  },
+  plugins: [{
+    afterDraw(chart) {
+      const ctx = chart.ctx;
+      const yScale = chart.scales.y;
+      const xScale = chart.scales.x;
+      const y = yScale.getPixelForValue(1000);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,200,83,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6,4]);
+      ctx.beginPath();
+      ctx.moveTo(xScale.left, y);
+      ctx.lineTo(xScale.right, y);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(0,200,83,0.7)';
+      ctx.font = '10px -apple-system';
+      ctx.fillText('목표: 1,000', xScale.right - 60, y - 5);
+      ctx.restore();
+    }
+  }]
+});
+
+// Comment Rate
+new Chart(document.getElementById('chartCommentRate'), {
+  type: 'line',
+  data: {
+    labels: weeklyData.map(w => w.week.replace('주차','')),
+    datasets: [{
+      data: weeklyData.map(w => parseFloat(w.commentRate.toFixed(2))),
+      borderColor: '#a855f7',
+      backgroundColor: 'rgba(168,85,247,0.1)',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 3,
+      pointBackgroundColor: '#a855f7',
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } },
+      x: { grid: { display: false }, ticks: { maxRotation: 45 } }
+    }
+  },
+  plugins: [{
+    afterDraw(chart) {
+      const ctx = chart.ctx;
+      const y = chart.scales.y.getPixelForValue(2);
+      const x = chart.scales.x;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,200,83,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6,4]);
+      ctx.beginPath();
+      ctx.moveTo(x.left, y);
+      ctx.lineTo(x.right, y);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(0,200,83,0.7)';
+      ctx.font = '10px -apple-system';
+      ctx.fillText('목표: 2%', x.right - 50, y - 5);
+      ctx.restore();
+    }
+  }]
+});
+
+// Engagement Composition
+new Chart(document.getElementById('chartEngComp'), {
+  type: 'bar',
+  data: {
+    labels: ['Info', 'Brand', 'Promotion', 'Info_Brand'],
+    datasets: [
+      { label: 'Save %', data: [infoStats.savePct, brandStats.savePct, promoStats.savePct, infoBrandStats.savePct], backgroundColor: '#eab308', borderRadius: 3 },
+      { label: 'Like %', data: [infoStats.likePct, brandStats.likePct, promoStats.likePct, infoBrandStats.likePct], backgroundColor: '#ef4444', borderRadius: 3 },
+      { label: 'Share %', data: [infoStats.sharePct, brandStats.sharePct, promoStats.sharePct, infoBrandStats.sharePct], backgroundColor: '#3b82f6', borderRadius: 3 },
+      { label: 'Comment %', data: [infoStats.commentPct, brandStats.commentPct, promoStats.commentPct, infoBrandStats.commentPct], backgroundColor: '#a855f7', borderRadius: 3 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { callback: v => v + '%' } }
+    }
+  }
+});
+
+// Content Type Mix
+new Chart(document.getElementById('chartTypeMix'), {
+  type: 'bar',
+  data: {
+    labels: weeklyData.map(w => w.week.replace('주차','')),
+    datasets: [
+      { label: 'Brand', data: weeklyData.map(w => w.brandCount), backgroundColor: 'rgba(99,102,241,0.7)', borderRadius: 2 },
+      { label: 'Info', data: weeklyData.map(w => w.infoCount), backgroundColor: 'rgba(6,182,212,0.7)', borderRadius: 2 },
+      { label: 'Promo', data: weeklyData.map(w => w.promoCount), backgroundColor: 'rgba(249,115,22,0.7)', borderRadius: 2 },
+      { label: 'Info_Brand', data: weeklyData.map(w => w.infoBrandCount), backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 2 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } },
+    scales: {
+      x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 45 } },
+      y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' } }
+    }
+  }
+});
+
+// Views by type
+const viewByWeekType = {};
+weekOrder.forEach(w => {
+  const items = weekMap[w];
+  viewByWeekType[w] = {
+    info: items.filter(r=>r.type==='Info').reduce((s,r)=>s+r.view,0) / Math.max(items.filter(r=>r.type==='Info').length,1),
+    brand: items.filter(r=>r.type==='Brand').reduce((s,r)=>s+r.view,0) / Math.max(items.filter(r=>r.type==='Brand').length,1),
+    infoBrand: items.filter(r=>r.type==='Info_Brand').reduce((s,r)=>s+r.view,0) / Math.max(items.filter(r=>r.type==='Info_Brand').length,1),
+  };
+});
+
+new Chart(document.getElementById('chartViews'), {
+  type: 'line',
+  data: {
+    labels: weekOrder.map(w => w.replace('주차','')),
+    datasets: [
+      { label: 'Info 평균', data: weekOrder.map(w => Math.round(viewByWeekType[w].info/1000)), borderColor: '#06b6d4', tension: 0.3, pointRadius: 2 },
+      { label: 'Brand 평균', data: weekOrder.map(w => Math.round(viewByWeekType[w].brand/1000)), borderColor: '#6366f1', tension: 0.3, pointRadius: 2 },
+      { label: 'Info_Brand 평균', data: weekOrder.map(w => Math.round(viewByWeekType[w].infoBrand/1000)), borderColor: '#10b981', tension: 0.3, pointRadius: 2 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } },
+    scales: {
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { callback: v => v + 'K' } },
+      x: { grid: { display: false }, ticks: { maxRotation: 45 } }
+    }
+  }
+});
+
+// Non-follower %
+const nfByType = {};
+['Info','Brand','Promotion','Info_Brand'].forEach(t => {
+  const items = filtered.filter(r => r.type === t && r.nfPct > 0);
+  nfByType[t] = items.length ? (items.reduce((s,r) => s+r.nfPct, 0) / items.length).toFixed(1) : 0;
+});
+
+new Chart(document.getElementById('chartNonFollower'), {
+  type: 'bar',
+  data: {
+    labels: ['Info', 'Brand', 'Promotion', 'Info_Brand'],
+    datasets: [{
+      data: [nfByType['Info'], nfByType['Brand'], nfByType['Promotion'], nfByType['Info_Brand']],
+      backgroundColor: ['rgba(6,182,212,0.6)', 'rgba(99,102,241,0.6)', 'rgba(249,115,22,0.6)', 'rgba(16,185,129,0.6)'],
+      borderRadius: 6,
+      barThickness: 40,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { callback: v => v + '%' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// ===== TABLE =====
+function pillClass(type) {
+  if (type === 'Brand') return 'pill-brand';
+  if (type === 'Info') return 'pill-info';
+  if (type === 'Promotion') return 'pill-promo';
+  if (type === 'Brand Campaign') return 'pill-campaign';
+  if (type === 'Info_Brand') return 'pill-infobrand';
+  return '';
+}
+
+function renderTable(filter) {
+  const filtered = filter === 'all' ? rows : rows.filter(r => r.type === filter);
+  const sorted = [...filtered].sort((a,b) => b.engagements - a.engagements);
+  document.getElementById('tableBody').innerHTML = sorted.map(r => {
+    const cr = r.engagements > 0 ? ((r.comments / r.engagements) * 100).toFixed(1) : '0';
+    return `<tr>
+      <td>${r.date}</td>
+      <td><span class="pill ${pillClass(r.type)}">${r.type}</span></td>
+      <td>${r.format}</td>
+      <td>${r.title}</td>
+      <td style="text-align:right">${(r.view/1000).toFixed(0)}K</td>
+      <td style="text-align:right;font-weight:600">${r.engagements.toLocaleString()}</td>
+      <td style="text-align:right">${r.saves.toLocaleString()}</td>
+      <td style="text-align:right">${r.likes.toLocaleString()}</td>
+      <td style="text-align:right">${r.shares.toLocaleString()}</td>
+      <td style="text-align:right">${r.comments}</td>
+      <td style="text-align:right;color:${parseFloat(cr) >= 2 ? 'var(--accent)' : 'var(--text-muted)'}">${cr}%</td>
+    </tr>`;
+  }).join('');
+}
+
+renderTable('all');
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    renderTable(tab.dataset.filter);
+  });
+});
+</script>
+</body>
+</html>

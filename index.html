@@ -272,7 +272,7 @@
 </div>
 
 <script>
-// ===== RAW DATA =====
+// ===== REACTIVE DASHBOARD =====
 const RAW_CSV = `type,Content,Title,Date,Week,View,Non-follower %,Reach,Engagements,Non follower %,Saves,Likes,Shares,Comments,Female %,Feed %,Profile Activity,Skip %,Average view time
 Info,Reels,스픽 직원도 영어책 첫 장만 공부함,25/11/27,11월 5주차,45000,42.8%,32000,86,13.60%,6,64,7,2,56.60%,95%,,73.80%,3
 Brand,Reels,T1 승리에 스픽 담당자가 간절해진 이유,25/11/28,11월 5주차,68000,47.0%,48000,340,25.40%,28,272,17,12,51.70%,80%,,74.70%,4
@@ -424,163 +424,181 @@ function getFilteredRows() {
   });
 }
 
-// ===== FILTER: Brand Campaign 제외 =====
-const filtered = rows.filter(r => r.type !== 'Brand Campaign');
+// ===== WEEK SORTING HELPER =====
+function sortWeeks(weeks) {
+  return [...weeks].sort((a, b) => {
+    const pa = a.match(/(\d+)월\s*(\d+)주차/);
+    const pb = b.match(/(\d+)월\s*(\d+)주차/);
+    if (!pa || !pb) return 0;
+    const ma = parseInt(pa[1]), wa = parseInt(pa[2]);
+    const mb = parseInt(pb[1]), wb = parseInt(pb[2]);
+    const ya = ma >= 11 ? 2025 : 2026;
+    const yb = mb >= 11 ? 2025 : 2026;
+    return (ya*100+ma)*10+wa - (yb*100+mb)*10-wb;
+  });
+}
 
-// ===== COMPUTE =====
-const totalPosts = filtered.length;
-const totalEng = filtered.reduce((s,r) => s + r.engagements, 0);
-const avgEng = Math.round(totalEng / totalPosts);
-const totalComments = filtered.reduce((s,r) => s + r.comments, 0);
-const commentRate = ((totalComments / totalEng) * 100).toFixed(2);
+// ===== COMPUTE FROM DATA =====
+function computeStats(dataset) {
+  const noCampaign = dataset.filter(r => r.type !== 'Brand Campaign');
+  const n = noCampaign.length;
+  const totalEng = noCampaign.reduce((s,r) => s+r.engagements, 0);
+  const totalCm = noCampaign.reduce((s,r) => s+r.comments, 0);
 
-function typeStats(typeName) {
-  const items = rows.filter(r => r.type === typeName);
-  const n = items.length;
-  if (!n) return { n:0, avgEng:0, avgView:0, saves:0, likes:0, shares:0, comments:0, commentRate:0, savePct:0, likePct:0, sharePct:0, commentPct:0 };
-  const eng = items.reduce((s,r) => s+r.engagements, 0);
-  const sv = items.reduce((s,r) => s+r.saves, 0);
-  const lk = items.reduce((s,r) => s+r.likes, 0);
-  const sh = items.reduce((s,r) => s+r.shares, 0);
-  const cm = items.reduce((s,r) => s+r.comments, 0);
+  function tStats(typeName) {
+    const items = dataset.filter(r => r.type === typeName);
+    const tn = items.length;
+    if (!tn) return { n:0, avgEng:0, avgView:0, commentRate:'0', savePct:'0', likePct:'0', sharePct:'0', commentPct:'0' };
+    const eng = items.reduce((s,r) => s+r.engagements, 0);
+    const sv = items.reduce((s,r) => s+r.saves, 0);
+    const lk = items.reduce((s,r) => s+r.likes, 0);
+    const sh = items.reduce((s,r) => s+r.shares, 0);
+    const cm = items.reduce((s,r) => s+r.comments, 0);
+    return {
+      n: tn, avgEng: Math.round(eng/tn), avgView: Math.round(items.reduce((s,r)=>s+r.view,0)/tn),
+      commentRate: eng > 0 ? ((cm/eng)*100).toFixed(2) : '0',
+      savePct: eng > 0 ? ((sv/eng)*100).toFixed(1) : '0',
+      likePct: eng > 0 ? ((lk/eng)*100).toFixed(1) : '0',
+      sharePct: eng > 0 ? ((sh/eng)*100).toFixed(1) : '0',
+      commentPct: eng > 0 ? ((cm/eng)*100).toFixed(1) : '0',
+    };
+  }
+
+  // Weekly
+  const wMap = {};
+  const wOrder = [];
+  noCampaign.forEach(r => {
+    if (!wMap[r.week]) { wMap[r.week] = []; wOrder.push(r.week); }
+    wMap[r.week].push(r);
+  });
+  const sortedWeeks = sortWeeks(wOrder);
+  const weekly = sortedWeeks.map(w => {
+    const items = wMap[w];
+    const eng = items.reduce((s,r)=>s+r.engagements,0);
+    const cm = items.reduce((s,r)=>s+r.comments,0);
+    return {
+      week: w,
+      avgEng: Math.round(eng / items.length),
+      commentRate: eng > 0 ? ((cm/eng)*100) : 0,
+      brandCount: items.filter(r => r.type === 'Brand').length,
+      infoCount: items.filter(r => r.type === 'Info').length,
+      infoBrandCount: items.filter(r => r.type === 'Info_Brand').length,
+      promoCount: items.filter(r => r.type === 'Promotion').length,
+      items,
+    };
+  });
+
+  // NF by type
+  const nfByType = {};
+  ['Info','Brand','Info_Brand','Promotion'].forEach(t => {
+    const items = noCampaign.filter(r => r.type === t && r.nfPct > 0);
+    nfByType[t] = items.length ? (items.reduce((s,r) => s+r.nfPct, 0) / items.length).toFixed(1) : 0;
+  });
+
   return {
-    n, avgEng: Math.round(eng/n), avgView: Math.round(items.reduce((s,r)=>s+r.view,0)/n),
-    saves: sv, likes: lk, shares: sh, comments: cm,
-    commentRate: eng > 0 ? ((cm/eng)*100).toFixed(2) : '0',
-    savePct: eng > 0 ? ((sv/eng)*100).toFixed(1) : '0',
-    likePct: eng > 0 ? ((lk/eng)*100).toFixed(1) : '0',
-    sharePct: eng > 0 ? ((sh/eng)*100).toFixed(1) : '0',
-    commentPct: eng > 0 ? ((cm/eng)*100).toFixed(1) : '0',
+    n, totalEng, avgEng: n > 0 ? Math.round(totalEng/n) : 0,
+    commentRate: totalEng > 0 ? ((totalCm/totalEng)*100).toFixed(2) : '0',
+    info: tStats('Info'), brand: tStats('Brand'), infoBrand: tStats('Info_Brand'), promo: tStats('Promotion'),
+    weekly, sortedWeeks, wMap, nfByType,
   };
 }
 
-const infoStats = typeStats('Info');
-const brandStats = typeStats('Brand');
-const promoStats = typeStats('Promotion');
-const infoBrandStats = typeStats('Info_Brand');
-
-// Weekly aggregation
-const weekOrder = [];
-const weekMap = {};
-filtered.forEach(r => {
-  if (!weekMap[r.week]) { weekMap[r.week] = []; weekOrder.push(r.week); }
-  weekMap[r.week].push(r);
-});
-weekOrder.sort((a, b) => {
-  const pa = a.match(/(\d+)월\s*(\d+)주차/);
-  const pb = b.match(/(\d+)월\s*(\d+)주차/);
-  if (!pa || !pb) return 0;
-  const ma = parseInt(pa[1]), wa = parseInt(pa[2]);
-  const mb = parseInt(pb[1]), wb = parseInt(pb[2]);
-  const ya = ma >= 11 ? 2025 : 2026;
-  const yb = mb >= 11 ? 2025 : 2026;
-  return (ya*100+ma)*10+wa - (yb*100+mb)*10-wb;
-});
-
-// Populate week filter
+// ===== INITIAL SETUP: populate week filter =====
+const allWeeks = sortWeeks([...new Set(rows.map(r => r.week))]);
 const weekSelect = document.getElementById('filterWeek');
-weekOrder.forEach(w => {
+allWeeks.forEach(w => {
   const opt = document.createElement('option');
   opt.value = w; opt.textContent = w;
   weekSelect.appendChild(opt);
 });
 
-const weeklyData = weekOrder.map(w => {
-  const items = weekMap[w];
-  const eng = items.reduce((s,r)=>s+r.engagements,0);
-  const cm = items.reduce((s,r)=>s+r.comments,0);
-  const brandCount = items.filter(r => r.type === 'Brand').length;
-  const infoCount = items.filter(r => r.type === 'Info').length;
-  const promoCount = items.filter(r => r.type === 'Promotion').length;
-  const infoBrandCount = items.filter(r => r.type === 'Info_Brand').length;
-  return {
-    week: w,
-    avgEng: Math.round(eng / items.length),
-    commentRate: eng > 0 ? ((cm/eng)*100) : 0,
-    total: items.length,
-    brandCount, infoCount, promoCount, infoBrandCount,
-  };
-});
+document.getElementById('lastUpdated').textContent = `최종 업데이트: ${rows[rows.length-1].date}`;
 
-// Recent weeks for Andon
-const recent3 = weeklyData.slice(-3);
-const engBelow500_3wk = recent3.every(w => w.avgEng < 500);
-const commentBelow1_1mo = weeklyData.slice(-4).every(w => w.commentRate < 1);
-const recentInfoPct = (() => {
-  const recent = filtered.slice(-20);
-  const info = recent.filter(r => r.type === 'Info' || r.type === 'Info_Brand').length;
-  return (info / recent.length) * 100;
-})();
-const infoOver50 = recentInfoPct > 50;
+// ===== CHART INSTANCES =====
+let charts = {};
+Chart.defaults.color = '#6b7280';
+Chart.defaults.borderColor = 'rgba(0,0,0,0.06)';
+Chart.defaults.font.family = '-apple-system, Pretendard, sans-serif';
+Chart.defaults.font.size = 11;
 
-// ===== RENDER KPIs =====
-const lastDate = rows[rows.length-1].date;
-document.getElementById('lastUpdated').textContent = `최종 업데이트: ${lastDate}`;
+function destroyCharts() {
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+}
 
-const recent4Weeks = weeklyData.slice(-4);
-const recent4WeekNames = recent4Weeks.map(w => w.week);
-const recent4Rows = filtered.filter(r => recent4WeekNames.includes(r.week));
-const r4Eng = recent4Rows.length > 0 ? Math.round(recent4Rows.reduce((s,r) => s+r.engagements, 0) / recent4Rows.length) : 0;
-const r4TotalEng = recent4Rows.reduce((s,r) => s+r.engagements, 0);
-const r4Comments = recent4Rows.reduce((s,r) => s+r.comments, 0);
-const r4CommentRate = r4TotalEng > 0 ? ((r4Comments / r4TotalEng) * 100).toFixed(2) : '0';
-const r4Period = recent4Weeks.length >= 2 ? `${recent4Weeks[0].week} ~ ${recent4Weeks[recent4Weeks.length-1].week}` : '';
+// ===== MASTER RENDER =====
+function renderAll() {
+  const fRows = getFilteredRows();
+  const s = computeStats(fRows);
+  const allS = computeStats(rows); // for reference numbers
 
-const engGoal = r4Eng >= 1000;
-const crGoal = parseFloat(r4CommentRate) >= 2;
+  // KPI (uses filtered data)
+  const r4w = s.weekly.slice(-4);
+  const r4names = r4w.map(w => w.week);
+  const r4rows = fRows.filter(r => r.type !== 'Brand Campaign' && r4names.includes(r.week));
+  const r4Eng = r4rows.length > 0 ? Math.round(r4rows.reduce((a,r) => a+r.engagements, 0) / r4rows.length) : 0;
+  const r4TotalEng = r4rows.reduce((a,r) => a+r.engagements, 0);
+  const r4Cm = r4rows.reduce((a,r) => a+r.comments, 0);
+  const r4CR = r4TotalEng > 0 ? ((r4Cm/r4TotalEng)*100).toFixed(2) : '0';
+  const r4Period = r4w.length >= 2 ? `${r4w[0].week} ~ ${r4w[r4w.length-1].week}` : (r4w.length === 1 ? r4w[0].week : '-');
+  const engGoal = r4Eng >= 1000;
+  const crGoal = parseFloat(r4CR) >= 2;
 
-document.getElementById('kpiRow').innerHTML = `
-  <div class="kpi-card">
-    <div class="kpi-top">
-      <div class="label">Weekly Avg Engagement</div>
-      <span class="badge ${engGoal ? 'badge-green' : 'badge-yellow'}">${engGoal ? 'On Track' : 'Below Target'}</span>
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <div class="label">Weekly Avg Engagement</div>
+        <span class="badge ${engGoal ? 'badge-green' : 'badge-yellow'}">${engGoal ? 'On Track' : 'Below Target'}</span>
+      </div>
+      <div class="value">${r4Eng.toLocaleString()}</div>
+      <div class="target"><span class="goal">목표: 1,000</span> · 전체 인게이지먼트 볼륨으로 채널 건강성 측정</div>
+      <div class="kpi-meta">
+        <div class="meta-item">${r4Period}</div>
+        <div class="meta-item">필터 평균 <span>${s.avgEng.toLocaleString()}</span></div>
+        <div class="meta-item">게시물 <span>${r4rows.length}개</span></div>
+      </div>
     </div>
-    <div class="value">${r4Eng.toLocaleString()}</div>
-    <div class="target"><span class="goal">목표: 1,000</span> · 전체 인게이지먼트 볼륨으로 채널 건강성 측정</div>
-    <div class="kpi-meta">
-      <div class="meta-item">${r4Period}</div>
-      <div class="meta-item">전체 기간 평균 <span>${avgEng.toLocaleString()}</span></div>
-      <div class="meta-item">게시물 <span>${recent4Rows.length}개</span></div>
-    </div>
-  </div>
-  <div class="kpi-card">
-    <div class="kpi-top">
-      <div class="label">댓글율 (Comment Rate)</div>
-      <span class="badge ${crGoal ? 'badge-green' : 'badge-yellow'}">${crGoal ? 'On Track' : 'Below Target'}</span>
-    </div>
-    <div class="value">${r4CommentRate}%</div>
-    <div class="target"><span class="goal">목표: 2%</span> · 사람들이 스픽에 대해 이야기하고 있는가</div>
-    <div class="kpi-meta">
-      <div class="meta-item">${r4Period}</div>
-      <div class="meta-item">전체 기간 평균 <span>${commentRate}%</span></div>
-      <div class="meta-item">산식 <span>Comments / Engagements</span></div>
-    </div>
-  </div>`;
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <div class="label">댓글율 (Comment Rate)</div>
+        <span class="badge ${crGoal ? 'badge-green' : 'badge-yellow'}">${crGoal ? 'On Track' : 'Below Target'}</span>
+      </div>
+      <div class="value">${r4CR}%</div>
+      <div class="target"><span class="goal">목표: 2%</span> · 사람들이 스픽에 대해 이야기하고 있는가</div>
+      <div class="kpi-meta">
+        <div class="meta-item">${r4Period}</div>
+        <div class="meta-item">필터 평균 <span>${s.commentRate}%</span></div>
+        <div class="meta-item">산식 <span>Comments / Engagements</span></div>
+      </div>
+    </div>`;
 
-// ===== ANDON =====
-const andons = [
-  { icon: '📉', color: engBelow500_3wk ? 'var(--red-dim)' : 'var(--accent-dim)', title: 'Avg Engagement < 500 (3주 연속)', desc: engBelow500_3wk ? '⚠️ 최근 3주 평균이 목표의 절반 미만' : `✅ 최근 3주: ${recent3.map(w=>w.avgEng).join(', ')}` },
-  { icon: '💬', color: commentBelow1_1mo ? 'var(--red-dim)' : 'var(--accent-dim)', title: '댓글율 < 1% (1개월 지속)', desc: commentBelow1_1mo ? '⚠️ 최근 4주 댓글율 모두 1% 미만' : `✅ 최근 4주 중 1%+ 달성 있음` },
-  { icon: '📊', color: infoOver50 ? 'var(--orange-dim)' : 'var(--accent-dim)', title: '정보성 비중 > 50%', desc: infoOver50 ? `⚠️ 최근 20개 중 정보성 ${recentInfoPct.toFixed(0)}%` : `✅ 최근 20개 중 정보성 ${recentInfoPct.toFixed(0)}%` },
-];
-document.getElementById('andonRow').innerHTML = andons.map(a => `
-  <div class="andon-card">
-    <div class="andon-icon" style="background:${a.color}">${a.icon}</div>
-    <div>
-      <div class="andon-title">${a.title}</div>
-      <div class="andon-desc">${a.desc}</div>
-    </div>
-  </div>`).join('');
+  // Andon (uses filtered data)
+  const rc3 = s.weekly.slice(-3);
+  const e500 = rc3.length > 0 && rc3.every(w => w.avgEng < 500);
+  const c1 = s.weekly.slice(-4).length > 0 && s.weekly.slice(-4).every(w => w.commentRate < 1);
+  const noCamp = fRows.filter(r => r.type !== 'Brand Campaign');
+  const rc20 = noCamp.slice(-20);
+  const infoPct = rc20.length > 0 ? (rc20.filter(r => r.type === 'Info' || r.type === 'Info_Brand').length / rc20.length * 100) : 0;
+  const i50 = infoPct > 50;
 
-// ===== TYPE GRID (clickable) =====
-const types = [
-  { name: 'Brand', stats: brandStats, dot: '#4f46e5' },
-  { name: 'Info', stats: infoStats, dot: '#0891b2' },
-  { name: 'Info_Brand', stats: infoBrandStats, dot: '#059669' },
-  { name: 'Promotion', stats: promoStats, dot: '#ea580c' },
-];
-function renderTypeGrid() {
-  document.getElementById('typeGrid').innerHTML = types.map(t => `
+  document.getElementById('andonRow').innerHTML = [
+    { icon: '📉', color: e500 ? 'var(--red-dim)' : 'var(--accent-dim)', title: 'Avg Engagement < 500 (3주 연속)', desc: e500 ? '⚠️ 최근 3주 평균이 목표의 절반 미만' : `✅ 최근 3주: ${rc3.map(w=>w.avgEng).join(', ')}` },
+    { icon: '💬', color: c1 ? 'var(--red-dim)' : 'var(--accent-dim)', title: '댓글율 < 1% (1개월 지속)', desc: c1 ? '⚠️ 최근 4주 댓글율 모두 1% 미만' : `✅ 최근 4주 중 1%+ 달성 있음` },
+    { icon: '📊', color: i50 ? 'var(--orange-dim)' : 'var(--accent-dim)', title: '정보성 비중 > 50%', desc: i50 ? `⚠️ 최근 20개 중 정보성 ${infoPct.toFixed(0)}%` : `✅ 최근 20개 중 정보성 ${infoPct.toFixed(0)}%` },
+  ].map(a => `
+    <div class="andon-card">
+      <div class="andon-icon" style="background:${a.color}">${a.icon}</div>
+      <div><div class="andon-title">${a.title}</div><div class="andon-desc">${a.desc}</div></div>
+    </div>`).join('');
+
+  // Type Grid
+  const typeList = [
+    { name: 'Brand', stats: s.brand, dot: '#4f46e5' },
+    { name: 'Info', stats: s.info, dot: '#0891b2' },
+    { name: 'Info_Brand', stats: s.infoBrand, dot: '#059669' },
+    { name: 'Promotion', stats: s.promo, dot: '#ea580c' },
+  ];
+  document.getElementById('typeGrid').innerHTML = typeList.map(t => `
     <div class="type-card ${currentFilters.type === t.name ? 'selected' : ''}" data-type="${t.name}">
       <div class="type-header">
         <div class="type-dot" style="background:${t.dot}"></div>
@@ -597,195 +615,103 @@ function renderTypeGrid() {
   document.querySelectorAll('.type-card').forEach(card => {
     card.addEventListener('click', () => {
       const t = card.dataset.type;
-      if (currentFilters.type === t) {
-        currentFilters.type = 'all';
-        document.getElementById('filterType').value = 'all';
-      } else {
-        currentFilters.type = t;
-        document.getElementById('filterType').value = t;
-      }
-      renderTypeGrid();
-      renderTable();
+      currentFilters.type = currentFilters.type === t ? 'all' : t;
+      document.getElementById('filterType').value = currentFilters.type;
+      renderAll();
     });
   });
+
+  // ===== CHARTS (destroy & recreate) =====
+  destroyCharts();
+  const wd = s.weekly;
+  const wLabels = wd.map(w => w.week.replace('주차',''));
+
+  // Weekly Engagement
+  charts.weeklyEng = new Chart(document.getElementById('chartWeeklyEng'), {
+    type: 'bar',
+    data: {
+      labels: wLabels,
+      datasets: [{ data: wd.map(w => w.avgEng), backgroundColor: wd.map(w => w.avgEng >= 1000 ? 'rgba(0,152,74,0.65)' : 'rgba(79,70,229,0.45)'), borderRadius: 4, barThickness: 16 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } }, x: { grid: { display: false }, ticks: { maxRotation: 45 } } } },
+    plugins: [{ afterDraw(chart) { const ctx=chart.ctx, y=chart.scales.y.getPixelForValue(1000), x=chart.scales.x; ctx.save(); ctx.strokeStyle='rgba(0,152,74,0.5)'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]); ctx.beginPath(); ctx.moveTo(x.left,y); ctx.lineTo(x.right,y); ctx.stroke(); ctx.fillStyle='rgba(0,152,74,0.7)'; ctx.font='10px -apple-system'; ctx.fillText('목표: 1,000',x.right-60,y-5); ctx.restore(); } }]
+  });
+
+  // Comment Rate
+  charts.commentRate = new Chart(document.getElementById('chartCommentRate'), {
+    type: 'line',
+    data: { labels: wLabels, datasets: [{ data: wd.map(w => parseFloat(w.commentRate.toFixed(2))), borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.08)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#7c3aed' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } }, x: { grid: { display: false }, ticks: { maxRotation: 45 } } } },
+    plugins: [{ afterDraw(chart) { const ctx=chart.ctx, y=chart.scales.y.getPixelForValue(2), x=chart.scales.x; ctx.save(); ctx.strokeStyle='rgba(0,152,74,0.5)'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]); ctx.beginPath(); ctx.moveTo(x.left,y); ctx.lineTo(x.right,y); ctx.stroke(); ctx.fillStyle='rgba(0,152,74,0.7)'; ctx.font='10px -apple-system'; ctx.fillText('목표: 2%',x.right-50,y-5); ctx.restore(); } }]
+  });
+
+  // Engagement Composition
+  charts.engComp = new Chart(document.getElementById('chartEngComp'), {
+    type: 'bar',
+    data: {
+      labels: ['Info', 'Brand', 'Info_Brand', 'Promotion'],
+      datasets: [
+        { label: 'Save %', data: [s.info.savePct, s.brand.savePct, s.infoBrand.savePct, s.promo.savePct], backgroundColor: '#ca8a04', borderRadius: 3 },
+        { label: 'Like %', data: [s.info.likePct, s.brand.likePct, s.infoBrand.likePct, s.promo.likePct], backgroundColor: '#dc2626', borderRadius: 3 },
+        { label: 'Share %', data: [s.info.sharePct, s.brand.sharePct, s.infoBrand.sharePct, s.promo.sharePct], backgroundColor: '#2563eb', borderRadius: 3 },
+        { label: 'Comment %', data: [s.info.commentPct, s.brand.commentPct, s.infoBrand.commentPct, s.promo.commentPct], backgroundColor: '#7c3aed', borderRadius: 3 },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } }, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v + '%' } } } }
+  });
+
+  // Type Mix
+  charts.typeMix = new Chart(document.getElementById('chartTypeMix'), {
+    type: 'bar',
+    data: {
+      labels: wLabels,
+      datasets: [
+        { label: 'Brand', data: wd.map(w => w.brandCount), backgroundColor: 'rgba(79,70,229,0.65)', borderRadius: 2 },
+        { label: 'Info', data: wd.map(w => w.infoCount), backgroundColor: 'rgba(8,145,178,0.65)', borderRadius: 2 },
+        { label: 'Info_Brand', data: wd.map(w => w.infoBrandCount), backgroundColor: 'rgba(5,150,105,0.65)', borderRadius: 2 },
+        { label: 'Promo', data: wd.map(w => w.promoCount), backgroundColor: 'rgba(234,88,12,0.65)', borderRadius: 2 },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } }, scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 45 } }, y: { stacked: true, grid: { color: 'rgba(0,0,0,0.04)' } } } }
+  });
+
+  // Views by type
+  const vbt = {};
+  s.sortedWeeks.forEach(w => {
+    const items = s.wMap[w] || [];
+    vbt[w] = {
+      info: items.filter(r=>r.type==='Info').reduce((a,r)=>a+r.view,0) / Math.max(items.filter(r=>r.type==='Info').length,1),
+      brand: items.filter(r=>r.type==='Brand').reduce((a,r)=>a+r.view,0) / Math.max(items.filter(r=>r.type==='Brand').length,1),
+      infoBrand: items.filter(r=>r.type==='Info_Brand').reduce((a,r)=>a+r.view,0) / Math.max(items.filter(r=>r.type==='Info_Brand').length,1),
+    };
+  });
+  charts.views = new Chart(document.getElementById('chartViews'), {
+    type: 'line',
+    data: {
+      labels: wLabels,
+      datasets: [
+        { label: 'Info 평균', data: s.sortedWeeks.map(w => Math.round(vbt[w].info/1000)), borderColor: '#0891b2', tension: 0.3, pointRadius: 2 },
+        { label: 'Brand 평균', data: s.sortedWeeks.map(w => Math.round(vbt[w].brand/1000)), borderColor: '#4f46e5', tension: 0.3, pointRadius: 2 },
+        { label: 'Info_Brand 평균', data: s.sortedWeeks.map(w => Math.round(vbt[w].infoBrand/1000)), borderColor: '#059669', tension: 0.3, pointRadius: 2 },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } }, scales: { y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v + 'K' } }, x: { grid: { display: false }, ticks: { maxRotation: 45 } } } }
+  });
+
+  // Non-follower %
+  charts.nf = new Chart(document.getElementById('chartNonFollower'), {
+    type: 'bar',
+    data: {
+      labels: ['Info', 'Brand', 'Info_Brand', 'Promotion'],
+      datasets: [{ data: [s.nfByType['Info'], s.nfByType['Brand'], s.nfByType['Info_Brand'], s.nfByType['Promotion']], backgroundColor: ['rgba(8,145,178,0.5)', 'rgba(79,70,229,0.5)', 'rgba(5,150,105,0.5)', 'rgba(234,88,12,0.5)'], borderRadius: 6, barThickness: 40 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } } }
+  });
+
+  // ===== TABLE =====
+  renderTable(fRows);
 }
-renderTypeGrid();
 
-// ===== CHARTS =====
-Chart.defaults.color = '#6b7280';
-Chart.defaults.borderColor = 'rgba(0,0,0,0.06)';
-Chart.defaults.font.family = '-apple-system, Pretendard, sans-serif';
-Chart.defaults.font.size = 11;
-
-new Chart(document.getElementById('chartWeeklyEng'), {
-  type: 'bar',
-  data: {
-    labels: weeklyData.map(w => w.week.replace('주차','')),
-    datasets: [{
-      data: weeklyData.map(w => w.avgEng),
-      backgroundColor: weeklyData.map(w => w.avgEng >= 1000 ? 'rgba(0,152,74,0.65)' : 'rgba(79,70,229,0.45)'),
-      borderRadius: 4, barThickness: 16,
-    }]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } },
-      x: { grid: { display: false }, ticks: { maxRotation: 45 } }
-    }
-  },
-  plugins: [{
-    afterDraw(chart) {
-      const ctx = chart.ctx;
-      const y = chart.scales.y.getPixelForValue(1000);
-      const x = chart.scales.x;
-      ctx.save();
-      ctx.strokeStyle = 'rgba(0,152,74,0.5)';
-      ctx.lineWidth = 1.5; ctx.setLineDash([6,4]);
-      ctx.beginPath(); ctx.moveTo(x.left, y); ctx.lineTo(x.right, y); ctx.stroke();
-      ctx.fillStyle = 'rgba(0,152,74,0.7)'; ctx.font = '10px -apple-system';
-      ctx.fillText('목표: 1,000', x.right - 60, y - 5);
-      ctx.restore();
-    }
-  }]
-});
-
-new Chart(document.getElementById('chartCommentRate'), {
-  type: 'line',
-  data: {
-    labels: weeklyData.map(w => w.week.replace('주차','')),
-    datasets: [{
-      data: weeklyData.map(w => parseFloat(w.commentRate.toFixed(2))),
-      borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.08)',
-      fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#7c3aed',
-    }]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } },
-      x: { grid: { display: false }, ticks: { maxRotation: 45 } }
-    }
-  },
-  plugins: [{
-    afterDraw(chart) {
-      const ctx = chart.ctx;
-      const y = chart.scales.y.getPixelForValue(2);
-      const x = chart.scales.x;
-      ctx.save();
-      ctx.strokeStyle = 'rgba(0,152,74,0.5)';
-      ctx.lineWidth = 1.5; ctx.setLineDash([6,4]);
-      ctx.beginPath(); ctx.moveTo(x.left, y); ctx.lineTo(x.right, y); ctx.stroke();
-      ctx.fillStyle = 'rgba(0,152,74,0.7)'; ctx.font = '10px -apple-system';
-      ctx.fillText('목표: 2%', x.right - 50, y - 5);
-      ctx.restore();
-    }
-  }]
-});
-
-new Chart(document.getElementById('chartEngComp'), {
-  type: 'bar',
-  data: {
-    labels: ['Info', 'Brand', 'Info_Brand', 'Promotion'],
-    datasets: [
-      { label: 'Save %', data: [infoStats.savePct, brandStats.savePct, infoBrandStats.savePct, promoStats.savePct], backgroundColor: '#ca8a04', borderRadius: 3 },
-      { label: 'Like %', data: [infoStats.likePct, brandStats.likePct, infoBrandStats.likePct, promoStats.likePct], backgroundColor: '#dc2626', borderRadius: 3 },
-      { label: 'Share %', data: [infoStats.sharePct, brandStats.sharePct, infoBrandStats.sharePct, promoStats.sharePct], backgroundColor: '#2563eb', borderRadius: 3 },
-      { label: 'Comment %', data: [infoStats.commentPct, brandStats.commentPct, infoBrandStats.commentPct, promoStats.commentPct], backgroundColor: '#7c3aed', borderRadius: 3 },
-    ]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } },
-    scales: {
-      x: { stacked: true, grid: { display: false } },
-      y: { stacked: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v + '%' } }
-    }
-  }
-});
-
-new Chart(document.getElementById('chartTypeMix'), {
-  type: 'bar',
-  data: {
-    labels: weeklyData.map(w => w.week.replace('주차','')),
-    datasets: [
-      { label: 'Brand', data: weeklyData.map(w => w.brandCount), backgroundColor: 'rgba(79,70,229,0.65)', borderRadius: 2 },
-      { label: 'Info', data: weeklyData.map(w => w.infoCount), backgroundColor: 'rgba(8,145,178,0.65)', borderRadius: 2 },
-      { label: 'Info_Brand', data: weeklyData.map(w => w.infoBrandCount), backgroundColor: 'rgba(5,150,105,0.65)', borderRadius: 2 },
-      { label: 'Promo', data: weeklyData.map(w => w.promoCount), backgroundColor: 'rgba(234,88,12,0.65)', borderRadius: 2 },
-    ]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } },
-    scales: {
-      x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 45 } },
-      y: { stacked: true, grid: { color: 'rgba(0,0,0,0.04)' } }
-    }
-  }
-});
-
-// Views by type
-const viewByWeekType = {};
-weekOrder.forEach(w => {
-  const items = weekMap[w];
-  viewByWeekType[w] = {
-    info: items.filter(r=>r.type==='Info').reduce((s,r)=>s+r.view,0) / Math.max(items.filter(r=>r.type==='Info').length,1),
-    brand: items.filter(r=>r.type==='Brand').reduce((s,r)=>s+r.view,0) / Math.max(items.filter(r=>r.type==='Brand').length,1),
-    infoBrand: items.filter(r=>r.type==='Info_Brand').reduce((s,r)=>s+r.view,0) / Math.max(items.filter(r=>r.type==='Info_Brand').length,1),
-  };
-});
-
-new Chart(document.getElementById('chartViews'), {
-  type: 'line',
-  data: {
-    labels: weekOrder.map(w => w.replace('주차','')),
-    datasets: [
-      { label: 'Info 평균', data: weekOrder.map(w => Math.round(viewByWeekType[w].info/1000)), borderColor: '#0891b2', tension: 0.3, pointRadius: 2 },
-      { label: 'Brand 평균', data: weekOrder.map(w => Math.round(viewByWeekType[w].brand/1000)), borderColor: '#4f46e5', tension: 0.3, pointRadius: 2 },
-      { label: 'Info_Brand 평균', data: weekOrder.map(w => Math.round(viewByWeekType[w].infoBrand/1000)), borderColor: '#059669', tension: 0.3, pointRadius: 2 },
-    ]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } },
-    scales: {
-      y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v + 'K' } },
-      x: { grid: { display: false }, ticks: { maxRotation: 45 } }
-    }
-  }
-});
-
-// Non-follower %
-const nfByType = {};
-['Info','Brand','Info_Brand','Promotion'].forEach(t => {
-  const items = filtered.filter(r => r.type === t && r.nfPct > 0);
-  nfByType[t] = items.length ? (items.reduce((s,r) => s+r.nfPct, 0) / items.length).toFixed(1) : 0;
-});
-
-new Chart(document.getElementById('chartNonFollower'), {
-  type: 'bar',
-  data: {
-    labels: ['Info', 'Brand', 'Info_Brand', 'Promotion'],
-    datasets: [{
-      data: [nfByType['Info'], nfByType['Brand'], nfByType['Info_Brand'], nfByType['Promotion']],
-      backgroundColor: ['rgba(8,145,178,0.5)', 'rgba(79,70,229,0.5)', 'rgba(5,150,105,0.5)', 'rgba(234,88,12,0.5)'],
-      borderRadius: 6, barThickness: 40,
-    }]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v + '%' } },
-      x: { grid: { display: false } }
-    }
-  }
-});
-
-// ===== TABLE =====
 function pillClass(type) {
   if (type === 'Brand') return 'pill-brand';
   if (type === 'Info') return 'pill-info';
@@ -797,15 +723,15 @@ function pillClass(type) {
 
 const maxEng = Math.max(...rows.map(r => r.engagements));
 
-function renderTable() {
-  const items = getFilteredRows();
-  const sorted = [...items].sort((a,b) => {
+function renderTable(fRows) {
+  if (!fRows) fRows = getFilteredRows();
+  const sorted = [...fRows].sort((a,b) => {
     const av = a[currentSort.key], bv = b[currentSort.key];
     if (typeof av === 'string') return currentSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     return currentSort.dir === 'asc' ? av - bv : bv - av;
   });
 
-  document.getElementById('filterCount').textContent = `${items.length}개 / 전체 ${rows.length}개`;
+  document.getElementById('filterCount').textContent = `${fRows.length}개 / 전체 ${rows.length}개`;
 
   document.getElementById('tableBody').innerHTML = sorted.map(r => {
     const cr = r.engagements > 0 ? ((r.comments / r.engagements) * 100).toFixed(1) : '0';
@@ -825,7 +751,6 @@ function renderTable() {
     </tr>`;
   }).join('');
 
-  // Update sort indicators
   document.querySelectorAll('th[data-sort]').forEach(th => {
     th.classList.toggle('sorted', th.dataset.sort === currentSort.key);
     const arrow = th.querySelector('.sort-arrow');
@@ -835,27 +760,23 @@ function renderTable() {
   });
 }
 
-// Click-to-filter from table pills
+// ===== EVENT LISTENERS =====
 function filterByType(type) {
   currentFilters.type = currentFilters.type === type ? 'all' : type;
   document.getElementById('filterType').value = currentFilters.type;
-  renderTypeGrid();
-  renderTable();
+  renderAll();
 }
 function filterByFormat(format) {
   currentFilters.format = currentFilters.format === format ? 'all' : format;
   document.getElementById('filterFormat').value = currentFilters.format;
-  renderTable();
+  renderAll();
 }
 
-// Filter bar listeners
 ['filterType','filterFormat','filterEng','filterWeek'].forEach(id => {
   document.getElementById(id).addEventListener('change', e => {
-    const key = id.replace('filter','').toLowerCase();
-    const keyMap = { type:'type', format:'format', eng:'eng', week:'week' };
-    currentFilters[keyMap[key]] = e.target.value;
-    if (key === 'type') renderTypeGrid();
-    renderTable();
+    const keyMap = { filterType:'type', filterFormat:'format', filterEng:'eng', filterWeek:'week' };
+    currentFilters[keyMap[id]] = e.target.value;
+    renderAll();
   });
 });
 
@@ -865,25 +786,20 @@ document.getElementById('filterReset').addEventListener('click', () => {
   document.getElementById('filterFormat').value = 'all';
   document.getElementById('filterEng').value = 'all';
   document.getElementById('filterWeek').value = 'all';
-  renderTypeGrid();
-  renderTable();
+  renderAll();
 });
 
-// Sortable headers
 document.querySelectorAll('th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
     const key = th.dataset.sort;
-    if (currentSort.key === key) {
-      currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
-    } else {
-      currentSort.key = key;
-      currentSort.dir = 'desc';
-    }
+    if (currentSort.key === key) { currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc'; }
+    else { currentSort.key = key; currentSort.dir = 'desc'; }
     renderTable();
   });
 });
 
-renderTable();
+// ===== INITIAL RENDER =====
+renderAll();
 </script>
 </body>
 </html>

@@ -253,6 +253,16 @@
       <div class="chart-wrap"><canvas id="chartNonFollower"></canvas></div>
     </div>
   </div>
+  <div class="charts-2col">
+    <div class="chart-card">
+      <h3>주간 댓글 수 <small>총합</small></h3>
+      <div class="chart-wrap"><canvas id="chartWeeklyComments"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>주간 평균 댓글 수 <small>게시물당</small></h3>
+      <div class="chart-wrap"><canvas id="chartAvgComments"></canvas></div>
+    </div>
+  </div>
 
   <!-- Content Table -->
   <div class="section"><div class="section-title">콘텐츠 상세</div></div>
@@ -493,6 +503,8 @@ function computeStats(dataset) {
       week: w,
       avgEng: Math.round(eng / items.length),
       commentRate: eng > 0 ? ((cm/eng)*100) : 0,
+      totalComments: cm,
+      avgComments: items.length > 0 ? (cm / items.length) : 0,
       brandCount: items.filter(r => r.type === 'Brand').length,
       infoCount: items.filter(r => r.type === 'Info').length,
       infoBrandCount: items.filter(r => r.type === 'Info_Brand').length,
@@ -728,6 +740,26 @@ function renderAll() {
       datasets: [{ data: [s.nfByType['Info'], s.nfByType['Brand'], s.nfByType['Info_Brand'], s.nfByType['Promotion']], backgroundColor: ['rgba(8,145,178,0.5)', 'rgba(79,70,229,0.5)', 'rgba(5,150,105,0.5)', 'rgba(234,88,12,0.5)'], borderRadius: 6, barThickness: 40 }]
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } } }
+  });
+
+  // Weekly total comments
+  charts.weeklyComments = new Chart(document.getElementById('chartWeeklyComments'), {
+    type: 'bar',
+    data: {
+      labels: wLabels,
+      datasets: [{ data: wd.map(w => w.totalComments), backgroundColor: 'rgba(124,58,237,0.5)', borderRadius: 4, barThickness: 16 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } }, x: { grid: { display: false }, ticks: { maxRotation: 45 } } } }
+  });
+
+  // Weekly avg comments per post
+  charts.avgComments = new Chart(document.getElementById('chartAvgComments'), {
+    type: 'line',
+    data: {
+      labels: wLabels,
+      datasets: [{ data: wd.map(w => parseFloat(w.avgComments.toFixed(1))), borderColor: '#ea580c', backgroundColor: 'rgba(234,88,12,0.08)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#ea580c' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } }, x: { grid: { display: false }, ticks: { maxRotation: 45 } } } }
   });
 
   // ===== TABLE =====

@@ -122,6 +122,9 @@
   .pill-infobrand { background: var(--infobrand-dim); color: var(--infobrand-color); }
   .pill-format { background: rgba(0,0,0,0.04); color: var(--text-muted); }
   .pill-tag { background: rgba(234,179,8,0.10); color: #a16207; font-size: 10px; padding: 1px 6px; margin-left: 2px; cursor: pointer; }
+  .pill-channel { font-size: 10px; padding: 1px 6px; cursor: pointer; }
+  .pill-channel-main { background: rgba(0,152,74,0.08); color: #059669; }
+  .pill-channel-behind { background: rgba(219,39,119,0.08); color: #db2777; }
 
   .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
   .tab { padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; background: transparent; color: var(--text-muted); border: 1px solid transparent; transition: all 0.2s; }
@@ -178,6 +181,14 @@
 
   <!-- Filter Bar -->
   <div class="filter-bar" id="filterBar">
+    <div class="filter-group">
+      <label>채널</label>
+      <select id="filterChannel">
+        <option value="all">전체</option>
+        <option value="speak_kr">speak_kr</option>
+        <option value="behind_speak">behind_speak</option>
+      </select>
+    </div>
     <div class="filter-group">
       <label>타입</label>
       <select id="filterType">
@@ -290,7 +301,7 @@
 
 <script>
 // ===== REACTIVE DASHBOARD =====
-const RAW_CSV = `type,Content,Title,Date,Week,View,Non-follower %,Reach,Engagements,Non follower %,Saves,Likes,Shares,Comments,Female %,Feed %,Profile Activity,Skip %,Average view time,Tags
+const RAW_CSV = `type,Content,Title,Date,Week,View,Non-follower %,Reach,Engagements,Non follower %,Saves,Likes,Shares,Comments,Female %,Feed %,Profile Activity,Skip %,Average view time,Tags,Channel
 Info,Reels,스픽 직원도 영어책 첫 장만 공부함,25/11/27,11월 5주차,45000,42.8%,32000,86,13.60%,6,64,7,2,56.60%,95%,,73.80%,3,
 Brand,Reels,T1 승리에 스픽 담당자가 간절해진 이유,25/11/28,11월 5주차,68000,47.0%,48000,340,25.40%,28,272,17,12,51.70%,80%,,74.70%,4
 Brand,Reels,스픽 담당자를 반성하게 만든 한마디,25/11/29,11월 5주차,47000,43.7%,29000,116,20.50%,6,108,1,1,53.60%,90%,,74.50%,8
@@ -387,7 +398,15 @@ Info_Brand,Reels,미국사람들이 excuse me 달고사는 이유,26/4/24,4월 3
 Info_Brand,Reels,미국에서는 쓰던 물건도 환불이 된다,26/4/27,4월 4주차,139000,48.30%,104000,430,7.50%,78,307,24,17,0,0,,0,0,오드리
 Info,Reels,직역하면 말 안되는 원어민 표현 14탄,26/5/6,5월 1주차,59000,45%,42000,419,3.80%,168,232,168,12,0,0,,0,0,오드리
 Info,Static,한국인들이 유독 잘 안 쓰는 원어민 표현 3가지,26/5/7,5월 1주차,108000,4.50%,46000,1645,16%,1031,476,113,6,0,0,,0,0,카드뉴스
-Brand,Reels,스픽 본사 투어,26/5/8,5월 1주차,74000,53.70%,56000,569,11.70%,81,396,62,22,0,0,,0,0,오드리`;
+Brand,Reels,스픽 본사 투어,26/5/8,5월 1주차,74000,53.70%,56000,569,11.70%,81,396,62,22,0,0,,0,0,오드리,speak_kr
+Info_Brand,Reels,미국에서 일요일에 살 수 없는 것,26/5/10,5월 2주차,92000,49.90%,65000,261,9.50%,42,182,14,18,0,0,,0,0,오드리,speak_kr
+Info,Reels,막막하다 영어로,26/5/12,5월 2주차,44000,46.30%,33000,581,6.10%,299,241,33,2,0,0,,0,0,오드리,speak_kr
+Info,Static,적절히 섞어 쓰면 원어민되는 표현 3가지,26/5/13,5월 2주차,85000,3%,35000,1278,14.30%,798,369,83,12,0,0,,0,0,카드뉴스,speak_kr
+Brand,Reels,오드리쌤 스픽 입사 스토리,26/5/13,5월 2주차,132000,98.70%,96000,699,96.40%,139,504,29,15,0,0,,0,0,오드리,behind_speak
+Info_Brand,Reels,미국 사람들 집에서도 신발 신을까,26/5/14,5월 2주차,307000,52.40%,196000,1093,12.30%,235,680,54,86,0,0,,0,0,오드리,speak_kr
+Info,Reels,고민된다 뻔하지 않은 영어로 말하는 법,26/5/16,5월 2주차,51000,52.90%,38000,580,23%,314,218,45,0,0,0,,0,0,오드리,speak_kr
+Brand,Reels,회사 전체 미팅에서 조는 동료와 눈 마주쳤을 때,26/5/14,5월 2주차,11600,0%,10000,117,0%,6,89,12,5,0,0,,0,0,강아지,behind_speak
+Brand,Reels,스픽 해피아워,26/5/15,5월 2주차,30000,0%,22500,128,0%,13,95,12,3,0,0,,0,0,오드리,behind_speak`;
 
 // ===== PARSE =====
 function parseCSV(csv) {
@@ -428,10 +447,11 @@ const rows = data.map(d => ({
   shares: num(d.Shares),
   comments: num(d.Comments),
   tags: (d.Tags || '').split('|').map(t => t.trim()).filter(Boolean),
+  channel: (d.Channel || 'speak_kr').trim(),
 }));
 
 // ===== FILTER STATE =====
-let currentFilters = { type: 'all', format: 'all', eng: 'all', week: 'all', tag: 'all' };
+let currentFilters = { type: 'all', format: 'all', eng: 'all', week: 'all', tag: 'all', channel: 'all' };
 let currentSort = { key: 'engagements', dir: 'desc' };
 
 function getFilteredRows() {
@@ -443,6 +463,7 @@ function getFilteredRows() {
     if (currentFilters.eng === '500+' && r.engagements < 500) return false;
     if (currentFilters.eng === '500-' && r.engagements >= 500) return false;
     if (currentFilters.tag !== 'all' && !r.tags.includes(currentFilters.tag)) return false;
+    if (currentFilters.channel !== 'all' && r.channel !== currentFilters.channel) return false;
     return true;
   });
 }
@@ -792,7 +813,7 @@ function renderTable(fRows) {
     const barW = Math.max(2, (r.engagements / maxEng) * 80);
     return `<tr>
       <td style="white-space:nowrap">${r.date}</td>
-      <td><span class="pill ${pillClass(r.type)}" onclick="filterByType('${r.type}')">${r.type}</span></td>
+      <td><span class="pill ${pillClass(r.type)}" onclick="filterByType('${r.type}')">${r.type}</span>${r.channel !== 'speak_kr' ? ` <span class="pill pill-channel pill-channel-behind" onclick="filterByChannel('${r.channel}')">${r.channel}</span>` : ''}</td>
       <td><span class="pill pill-format" onclick="filterByFormat('${r.format}')">${r.format}</span></td>
       <td>${r.title}${r.tags.length ? ' ' + r.tags.map(t => `<span class="pill pill-tag" onclick="filterByTag('${t}')">${t}</span>`).join(' ') : ''}</td>
       <td style="text-align:right">${(r.view/1000).toFixed(0)}K</td>
@@ -830,17 +851,23 @@ function filterByTag(tag) {
   document.getElementById('filterTag').value = currentFilters.tag;
   renderAll();
 }
+function filterByChannel(ch) {
+  currentFilters.channel = currentFilters.channel === ch ? 'all' : ch;
+  document.getElementById('filterChannel').value = currentFilters.channel;
+  renderAll();
+}
 
-['filterType','filterFormat','filterEng','filterWeek','filterTag'].forEach(id => {
+['filterChannel','filterType','filterFormat','filterEng','filterWeek','filterTag'].forEach(id => {
   document.getElementById(id).addEventListener('change', e => {
-    const keyMap = { filterType:'type', filterFormat:'format', filterEng:'eng', filterWeek:'week', filterTag:'tag' };
+    const keyMap = { filterChannel:'channel', filterType:'type', filterFormat:'format', filterEng:'eng', filterWeek:'week', filterTag:'tag' };
     currentFilters[keyMap[id]] = e.target.value;
     renderAll();
   });
 });
 
 document.getElementById('filterReset').addEventListener('click', () => {
-  currentFilters = { type: 'all', format: 'all', eng: 'all', week: 'all', tag: 'all' };
+  currentFilters = { type: 'all', format: 'all', eng: 'all', week: 'all', tag: 'all', channel: 'all' };
+  document.getElementById('filterChannel').value = 'all';
   document.getElementById('filterType').value = 'all';
   document.getElementById('filterFormat').value = 'all';
   document.getElementById('filterEng').value = 'all';
